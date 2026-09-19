@@ -9,16 +9,29 @@ export default async function handler(req, res) {
       });
     }
 
+    const controller = new AbortController();
+
+    // Stop waiting after 10 seconds
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 10000);
+
     const url =
       `https://newsapi.org/v2/top-headlines?country=us&pageSize=20&apiKey=${apiKey}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
     const data = await response.json();
 
     if (!response.ok) {
       return res.status(response.status).json({
         success: false,
-        error: data.message || "News API request failed"
+        error: data.message || "NewsAPI request failed"
       });
     }
 
@@ -28,9 +41,16 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
+    if (error.name === "AbortError") {
+      return res.status(504).json({
+        success: false,
+        error: "NewsAPI took too long to respond"
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      error: "Server error while fetching news"
+      error: error.message || "Server error"
     });
   }
 }
